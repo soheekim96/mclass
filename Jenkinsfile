@@ -1,4 +1,4 @@
-pipeline{
+pipeline {
     agent any //어떤 실행 서버에서든 실행 가능
 
     tools {
@@ -29,14 +29,14 @@ pipeline{
                 }
             }
 
-            stage('Maven Build'){
+            stage('Maven Build') {
                 steps {
                     //테스트는 건너뛰고 Maven 빌드
                     sh 'mvn clean package -DskipTests'
                 }
             }
 
-            stage('Prepare Jar'){
+            stage('Prepare Jar') {
                 steps {
                     //빌드 결과물 jar 파일을 지정한 이름 app.jar로 복사
                     sh 'cp target/demo-0.0.1-SNAPSHOT.jar ${JAR_FILE_NAME}'
