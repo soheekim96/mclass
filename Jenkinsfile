@@ -18,6 +18,11 @@ pipeline {
 
         REMOTE_DIR = "/home/ec2-user/deploy" //원격 서버에 파일 복사할 경로
         SSH_CREDENTIALS_ID = "30a94d48-312d-4861-a1a0-4de8c1073dfd" // jenkins ssh 자격 증명 IP
+
+        //jenkins secret file ID
+        SECRET_FILE_ID = 'c5cf823f-1271-4ed8-9570-753323f2e1bc'
+
+
     }
         //단계별로 실행될 코드 작성
         stages {
@@ -43,18 +48,36 @@ pipeline {
                 }
             }
 
-            stage('Copy to Remote Server') {
-                steps {
-                    //jenkins 가 원격 서버 ssh 접속할 수 있도록 sshagent 사용
-                    sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
-                        //원격 서버에 배포 디렉토리 생성 (없으면 새로 만듦)
-                        sh "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${REMOTE_USER}@${REMOTE_HOST} \"mkdir -p ${REMOTE_DIR}\""
-                        // Jar 파일과 Dockerfile을 원격 서버에 복사
-                        sh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${JAR_FILE_NAME} Dockerfile ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/"
-
-                    }
+            stage('Inject Spring Config (Secret File)') 
+            
+            
+            {     stage('Inject Spring Config (Secret File)') {
+            steps {
+                withCredentials([file(credentialsId: env.SECRET_FILE_ID, variable: 'SPRING_CONFIG_FILE')]) {
+                    sh """
+                        echo "[INFO] Using secret file: $SPRING_CONFIG_FILE"
+                        cp \$SPRING_CONFIG_FILE ./application-prod.properties
+                    """
                 }
             }
+        }
+
+            }
+
+            stage('Copy to Remote Server') {
+                steps {
+                    sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
+                        sh """
+                        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ${REMOTE_DIR}"
+                        scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                            ${JAR_FILE_NAME} \
+                            application-prod.properties \
+                            Dockerfile \
+                            ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
+                    """
+                }
+            }
+        }
 
             stage('Remote Docker Build & Deploy') {
                 steps {
@@ -63,8 +86,8 @@ pipeline {
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${REMOTE_USER}@${REMOTE_HOST} << ENDSSH
     cd ${REMOTE_DIR} || exit 1
     docker rm -f ${CONTAINER_NAME} || true
-    docker build -t ${DOCKER_IMAGE} .
-    docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${DOCKER_IMAGE}
+    docker build --build-arg PROFILE=prod -t ${DOCKER_IMAGE} .
+    docker build --build-arg PROFILE=prod -t ${DOCKER_IMAGE} .
 ENDSSH
                         
                         """
