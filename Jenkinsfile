@@ -18,7 +18,7 @@ pipeline{
 
         REMOTE_DIR = "/home/ec2-user/deploy" //원격 서버에 파일 복사할 경로
         SSH_CREDENTIALS_ID = "30a94d48-312d-4861-a1a0-4de8c1073dfd" // jenkins ssh 자격 증명 IP
-
+    }
         //단계별로 실행될 코드 작성
         stages {
             stage('Git Checkout') {
@@ -45,6 +45,5 @@ pipeline{
 
         }
 
-    }
+    
 
-}
