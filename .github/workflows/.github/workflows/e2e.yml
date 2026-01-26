@@ -1,0 +1,68 @@
+name: E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment (STG/PRD)"
+        required: true
+        default: "STG"
+        type: choice
+        options: [STG, PRD]
+      base_url:
+        description: "Test URL"
+        required: true
+        default: "https://web.example.com"
+      groups:
+        description: "Comma separated groups (ex: login,order). Empty = all"
+        required: false
+        default: ""
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          ENV: ${{ inputs.env }}
+          BASE_URL: ${{ inputs.base_url }}
+          GROUPS: ${{ inputs.groups }}
+        run: |
+          python -c "print('ENV=', '$ENV'); print('BASE_URL=', '$BASE_URL'); print('GROUPS=', '$GROUPS')"
+          # 예시: groups가 있으면 marker로 돌리는 방식(원하는 방식으로 바꿔도 됨)
+          if [ -n "$GROUPS" ]; then
+            # login,order -> "login or order"
+            MARKER=$(echo "$GROUPS" | sed 's/,/ or /g')
+            pytest -m "$MARKER" --html=report.html --self-contained-html
+          else
+            pytest --html=report.html --self-contained-html
+          fi
+
+      - name: Build summary.json
+        run: |
+          python scripts/make_summary.py \
+            --env "${{ inputs.env }}" \
+            --base-url "${{ inputs.base_url }}" \
+            --groups "${{ inputs.groups }}" \
+            --report "report.html" \
+            --out "summary.json"
+
+      - name: Upload artifacts (summary + report)
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            summary.json
+            report.html
+          retention-days: 30
